@@ -63,14 +63,14 @@ async function main(): Promise<void> {
       const result = await mcpClient.readResource({ uri: resource.uri });
 
       for (const content of result.contents) {
-        if (content.type === 'text' && 'text' in content) {
+        if ('text' in content) {
           console.log('[TEXT RESOURCE]');
           // Show first 200 chars or full content if shorter
           const preview = content.text.length > 200
             ? content.text.substring(0, 200) + '...'
             : content.text;
           console.log(preview);
-        } else if (content.type === 'blob' && 'blob' in content) {
+        } else if ('blob' in content) {
           console.log('[BINARY RESOURCE (base64)]');
           const blob = content.blob;
           console.log(`Base64 length: ${blob.length} chars`);

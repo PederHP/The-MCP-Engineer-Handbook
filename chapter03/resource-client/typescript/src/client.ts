@@ -81,7 +81,7 @@ async function main(): Promise<void> {
     });
 
     for (const content of handbookResult.contents) {
-      if (content.type === 'text' && 'text' in content) {
+      if ('text' in content) {
         // Show first 500 chars to keep output manageable
         const preview = content.text.length > 500
           ? content.text.substring(0, 500) + '\n[... truncated ...]'
@@ -100,7 +100,7 @@ async function main(): Promise<void> {
     });
 
     for (const content of alicePrefs.contents) {
-      if (content.type === 'text' && 'text' in content) {
+      if ('text' in content) {
         console.log(content.text);
       }
     }
@@ -115,7 +115,7 @@ async function main(): Promise<void> {
     });
 
     for (const content of backendSettings.contents) {
-      if (content.type === 'text' && 'text' in content) {
+      if ('text' in content) {
         console.log(content.text);
       }
     }

@@ -222,9 +222,9 @@ Always check what resources are available before trying to read them.`;
               const contents: string[] = [];
 
               for (const content of result.contents) {
-                if (content.type === 'text' && 'text' in content) {
+                if ('text' in content) {
                   contents.push(content.text);
-                } else if (content.type === 'blob' && 'blob' in content) {
+                } else if ('blob' in content) {
                   contents.push(`[Binary content: ${content.mimeType}, ${content.blob.length} bytes base64]`);
                 }
               }
