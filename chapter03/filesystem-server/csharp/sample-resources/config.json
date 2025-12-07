@@ -1,0 +1,9 @@
+{
+  "appName": "FileSystem Resource Server Demo",
+  "version": "1.0.0",
+  "settings": {
+    "maxFileSize": "10MB",
+    "allowedExtensions": [".txt", ".md", ".json", ".png", ".jpg"],
+    "cacheEnabled": true
+  }
+}

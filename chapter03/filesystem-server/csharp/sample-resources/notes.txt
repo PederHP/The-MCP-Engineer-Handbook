@@ -1,0 +1,12 @@
+Development Notes
+==================
+
+This server demonstrates dynamic resource loading from a filesystem.
+
+Key features:
+- Files are discovered dynamically (no hardcoded list)
+- Binary files (images) are served as base64-encoded blobs
+- Text files are served as plain text
+- MIME types are inferred from file extensions
+
+Try adding more files to this folder and they'll appear automatically!
