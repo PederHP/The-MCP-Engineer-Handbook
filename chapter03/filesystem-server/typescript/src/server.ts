@@ -15,6 +15,10 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import {
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 import { IncomingMessage, ServerResponse, createServer } from 'node:http';
 import { readdir, readFile, stat, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -216,7 +220,7 @@ class FileSystemServer {
    */
   private setupHandlers(): void {
     // List resources handler
-    this.server.server.setRequestHandler('resources/list', async () => {
+    this.server.server.setRequestHandler(ListResourcesRequestSchema, async () => {
       const files = await listFilesRecursive(this.resourceFolder);
       const resources = [];
 
@@ -240,8 +244,8 @@ class FileSystemServer {
     });
 
     // Read resource handler
-    this.server.server.setRequestHandler('resources/read', async (request) => {
-      const uri = (request.params as { uri?: string })?.uri;
+    this.server.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+      const uri = request.params?.uri;
       if (!uri) {
         throw new Error('Missing URI parameter');
       }
@@ -319,6 +323,8 @@ class FileSystemServer {
    * Start the HTTP server
    */
   async start(port: number = 5002): Promise<void> {
+    const transports: Record<string, StreamableHTTPServerTransport> = {};
+
     const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
       if (!req.url || !req.url.startsWith('/mcp')) {
         res.writeHead(404);
@@ -326,8 +332,26 @@ class FileSystemServer {
         return;
       }
 
-      const transport = new StreamableHTTPServerTransport('/mcp', req, res);
-      await this.server.connect(transport);
+      try {
+        // Simple implementation for single-session HTTP transport
+        const sessionId = 'default';
+        
+        if (!transports[sessionId]) {
+          const transport = new StreamableHTTPServerTransport({
+            sessionIdGenerator: () => sessionId,
+          });
+          transports[sessionId] = transport;
+          await this.server.connect(transport);
+        }
+
+        await transports[sessionId].handleRequest(req, res);
+      } catch (error) {
+        console.error('Error handling request:', error);
+        if (!res.headersSent) {
+          res.writeHead(500);
+          res.end('Internal Server Error');
+        }
+      }
     });
 
     httpServer.listen(port, () => {

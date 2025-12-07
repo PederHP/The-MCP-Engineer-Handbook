@@ -13,6 +13,11 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import {
+  ListResourcesRequestSchema,
+  ListResourceTemplatesRequestSchema,
+  ReadResourceRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 import { IncomingMessage, ServerResponse, createServer } from 'node:http';
 
 /**
@@ -174,107 +179,137 @@ class ResourceServer {
    * Set up static resources and resource templates
    */
   private setupResources(): void {
-    // Static resources
-    this.server.resource(
-      'docs://company/handbook',
-      'Company Handbook',
-      'text/markdown',
-      'The company handbook with policies and guidelines',
-      async () => ({
-        contents: [
-          {
-            uri: 'docs://company/handbook',
-            mimeType: 'text/markdown',
-            text: companyHandbook,
-          },
-        ],
-      })
-    );
-
-    this.server.resource(
-      'docs://company/coding-standards',
-      'Coding Standards',
-      'text/markdown',
-      'The coding standards and best practices guide',
-      async () => ({
-        contents: [
-          {
-            uri: 'docs://company/coding-standards',
-            mimeType: 'text/markdown',
-            text: codingStandards,
-          },
-        ],
-      })
-    );
-
-    this.server.resource(
-      'docs://api/endpoints',
-      'API Endpoints',
-      'application/json',
-      'Documentation of available API endpoints',
-      async () => ({
-        contents: [
-          {
-            uri: 'docs://api/endpoints',
-            mimeType: 'application/json',
-            text: apiEndpoints,
-          },
-        ],
-      })
-    );
-
-    // Resource templates
-    this.server.resourceTemplate(
-      'config://user/{userId}/preferences',
-      'User Preferences',
-      'application/json',
-      'User-specific preferences and settings',
-      async (uri: string) => {
-        // Extract userId from URI
-        const match = uri.match(/config:\/\/user\/([^/]+)\/preferences/);
-        if (!match) {
-          throw new Error('Invalid URI format');
-        }
-
-        const userId = match[1];
-        const preferences = getUserPreferences(userId);
-
+    // List resources handler
+    this.server.server.setRequestHandler(
+      ListResourcesRequestSchema,
+      async () => {
         return {
-          contents: [
+          resources: [
             {
-              uri,
+              uri: 'docs://company/handbook',
+              name: 'Company Handbook',
+              mimeType: 'text/markdown',
+              description: 'The company handbook with policies and guidelines',
+            },
+            {
+              uri: 'docs://company/coding-standards',
+              name: 'Coding Standards',
+              mimeType: 'text/markdown',
+              description: 'The coding standards and best practices guide',
+            },
+            {
+              uri: 'docs://api/endpoints',
+              name: 'API Endpoints',
               mimeType: 'application/json',
-              text: JSON.stringify(preferences, null, 2),
+              description: 'Documentation of available API endpoints',
             },
           ],
         };
       }
     );
 
-    this.server.resourceTemplate(
-      'config://project/{projectId}/settings',
-      'Project Settings',
-      'application/json',
-      'Project-specific configuration and settings',
-      async (uri: string) => {
-        // Extract projectId from URI
-        const match = uri.match(/config:\/\/project\/([^/]+)\/settings/);
-        if (!match) {
-          throw new Error('Invalid URI format');
-        }
-
-        const projectId = match[1];
-        const settings = getProjectSettings(projectId);
-
+    // List resource templates handler
+    this.server.server.setRequestHandler(
+      ListResourceTemplatesRequestSchema,
+      async () => {
         return {
-          contents: [
+          resourceTemplates: [
             {
-              uri,
+              uriTemplate: 'config://user/{userId}/preferences',
+              name: 'User Preferences',
               mimeType: 'application/json',
-              text: JSON.stringify(settings, null, 2),
+              description: 'User-specific preferences and settings',
+            },
+            {
+              uriTemplate: 'config://project/{projectId}/settings',
+              name: 'Project Settings',
+              mimeType: 'application/json',
+              description: 'Project-specific configuration and settings',
             },
           ],
         };
+      }
+    );
+
+    // Read resource handler
+    this.server.server.setRequestHandler(
+      ReadResourceRequestSchema,
+      async (request) => {
+        const uri = request.params?.uri;
+        if (!uri) {
+          throw new Error('Missing URI parameter');
+        }
+
+        // Handle static resources
+        if (uri === 'docs://company/handbook') {
+          return {
+            contents: [
+              {
+                uri,
+                mimeType: 'text/markdown',
+                text: companyHandbook,
+              },
+            ],
+          };
+        }
+
+        if (uri === 'docs://company/coding-standards') {
+          return {
+            contents: [
+              {
+                uri,
+                mimeType: 'text/markdown',
+                text: codingStandards,
+              },
+            ],
+          };
+        }
+
+        if (uri === 'docs://api/endpoints') {
+          return {
+            contents: [
+              {
+                uri,
+                mimeType: 'application/json',
+                text: apiEndpoints,
+              },
+            ],
+          };
+        }
+
+        // Handle templated resources - user preferences
+        const userMatch = uri.match(/^config:\/\/user\/([^/]+)\/preferences$/);
+        if (userMatch) {
+          const userId = userMatch[1];
+          const preferences = getUserPreferences(userId);
+          return {
+            contents: [
+              {
+                uri,
+                mimeType: 'application/json',
+                text: JSON.stringify(preferences, null, 2),
+              },
+            ],
+          };
+        }
+
+        // Handle templated resources - project settings
+        const projectMatch = uri.match(/^config:\/\/project\/([^/]+)\/settings$/);
+        if (projectMatch) {
+          const projectId = projectMatch[1];
+          const settings = getProjectSettings(projectId);
+          return {
+            contents: [
+              {
+                uri,
+                mimeType: 'application/json',
+                text: JSON.stringify(settings, null, 2),
+              },
+            ],
+          };
+        }
+
+        throw new Error(`Resource not found: ${uri}`);
       }
     );
   }
@@ -298,6 +333,8 @@ class ResourceServer {
    * Start the HTTP server
    */
   async start(port: number = 5000): Promise<void> {
+    const transports: Record<string, StreamableHTTPServerTransport> = {};
+
     const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
       if (!req.url || !req.url.startsWith('/mcp')) {
         res.writeHead(404);
@@ -305,8 +342,26 @@ class ResourceServer {
         return;
       }
 
-      const transport = new StreamableHTTPServerTransport('/mcp', req, res);
-      await this.server.connect(transport);
+      try {
+        // Simple implementation for single-session HTTP transport
+        const sessionId = 'default';
+        
+        if (!transports[sessionId]) {
+          const transport = new StreamableHTTPServerTransport({
+            sessionIdGenerator: () => sessionId,
+          });
+          transports[sessionId] = transport;
+          await this.server.connect(transport);
+        }
+
+        await transports[sessionId].handleRequest(req, res);
+      } catch (error) {
+        console.error('Error handling request:', error);
+        if (!res.headersSent) {
+          res.writeHead(500);
+          res.end('Internal Server Error');
+        }
+      }
     });
 
     httpServer.listen(port, () => {
